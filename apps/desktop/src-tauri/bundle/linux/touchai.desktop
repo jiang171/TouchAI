@@ -1,13 +1,13 @@
 [Desktop Entry]
 Name=TouchAI
 Comment=A desktop AI tool - AI at your fingertips
-Exec=touch-ai %u
-Icon=touchai
+Exec=TouchAI %u
+Icon=TouchAI
 Type=Application
 Categories=Utility;
-StartupWMClass=touchai
+StartupWMClass=TouchAI
 Actions=Toggle;
 
 [Desktop Action Toggle]
 Name=Toggle Window
-Exec=touch-ai --toggle
+Exec=TouchAI --toggle
