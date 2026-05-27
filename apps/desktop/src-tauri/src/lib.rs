@@ -91,8 +91,17 @@ pub fn run() {
     let builder =
         if cfg!(not(debug_assertions)) && core::system::runtime::should_enable_single_instance() {
             builder.plugin(tauri_plugin_single_instance::init(
-                |app, _args: Vec<String>, _cwd: String| {
-                    if let Some(window) = app.get_webview_window("main") {
+                |app, args: Vec<String>, _cwd: String| {
+                    let should_toggle = args.iter().any(|arg| arg == "--toggle");
+
+                    if should_toggle {
+                        // CLI toggle: reuse the same logic as global shortcut
+                        if let Err(error) =
+                            core::window::search::show_search_window_from_shortcut(app)
+                        {
+                            warn!("Failed to toggle search window from CLI --toggle: {}", error);
+                        }
+                    } else if let Some(window) = app.get_webview_window("main") {
                         let _ = window.unminimize();
                         let _ = window.show();
                         let _ = window.set_focus();
