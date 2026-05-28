@@ -5,12 +5,18 @@
 use log::{info, warn};
 use tauri::{
     image::Image,
-    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
+    tray::{TrayIcon, TrayIconBuilder},
     AppHandle, Manager, PhysicalPosition, Runtime, WebviewUrl, WebviewWindowBuilder,
 };
 
 const TRAY_ID: &str = "touchai-main";
 const TRAY_MENU_ROUTE: &str = "#/tray-menu";
+#[cfg(target_os = "linux")]
+const TRAY_MENU_SHOW: &str = "tray-show-window";
+#[cfg(target_os = "linux")]
+const TRAY_MENU_SETTINGS: &str = "tray-settings";
+#[cfg(target_os = "linux")]
+const TRAY_MENU_QUIT: &str = "tray-quit";
 
 struct TouchAiTray<R: Runtime> {
     _tray: TrayIcon<R>,
@@ -20,41 +26,12 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::er
     let icon = load_tray_icon()?;
 
     #[cfg(target_os = "linux")]
-    let tray_builder =
-        TrayIconBuilder::with_id(TRAY_ID).temp_dir_path(resolve_linux_tray_icon_dir(app)?);
+    let tray_builder = build_linux_tray_builder(app)?;
 
     #[cfg(not(target_os = "linux"))]
-    let tray_builder = TrayIconBuilder::with_id(TRAY_ID);
+    let tray_builder = build_non_linux_tray_builder();
 
-    let tray = tray_builder
-        .icon(icon)
-        .tooltip("TouchAI")
-        .on_tray_icon_event(|tray, event| match event {
-            TrayIconEvent::Click {
-                button: MouseButton::Right,
-                button_state: MouseButtonState::Up,
-                position,
-                ..
-            } => {
-                let app = tray.app_handle();
-                if let Err(e) = show_tray_menu(app, position) {
-                    warn!("Failed to show tray menu: {}", e);
-                }
-            }
-            TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } => {
-                let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
-            _ => {}
-        })
-        .build(app)?;
+    let tray = tray_builder.icon(icon).tooltip("TouchAI").build(app)?;
 
     app.manage(TouchAiTray { _tray: tray });
 
@@ -106,6 +83,77 @@ fn load_tray_icon() -> Result<Image<'static>, Box<dyn std::error::Error>> {
 
     let icon = Image::new_owned(rgba.into_raw(), width, height);
     Ok(icon)
+}
+
+#[cfg(target_os = "linux")]
+fn build_linux_tray_builder<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<TrayIconBuilder<R>, Box<dyn std::error::Error>> {
+    let menu = build_linux_tray_menu(app)?;
+
+    Ok(TrayIconBuilder::with_id(TRAY_ID)
+        .temp_dir_path(resolve_linux_tray_icon_dir(app)?)
+        .menu(&menu)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            TRAY_MENU_SHOW => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            TRAY_MENU_SETTINGS => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = crate::core::window::build_settings_window(&app).await {
+                        warn!("Failed to open settings from tray menu: {}", error);
+                    }
+                });
+            }
+            TRAY_MENU_QUIT => app.exit(0),
+            _ => {}
+        }))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn build_non_linux_tray_builder<R: Runtime>() -> TrayIconBuilder<R> {
+    TrayIconBuilder::with_id(TRAY_ID).on_tray_icon_event(|tray, event| match event {
+        tauri::tray::TrayIconEvent::Click {
+            button: tauri::tray::MouseButton::Right,
+            button_state: tauri::tray::MouseButtonState::Up,
+            position,
+            ..
+        } => {
+            let app = tray.app_handle();
+            if let Err(e) = show_tray_menu(app, position) {
+                warn!("Failed to show tray menu: {}", e);
+            }
+        }
+        tauri::tray::TrayIconEvent::Click {
+            button: tauri::tray::MouseButton::Left,
+            button_state: tauri::tray::MouseButtonState::Up,
+            ..
+        } => {
+            let app = tray.app_handle();
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
+        _ => {}
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn build_linux_tray_menu<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<tauri::menu::Menu<R>, Box<dyn std::error::Error>> {
+    Ok(tauri::menu::MenuBuilder::new(app)
+        .text(TRAY_MENU_SHOW, "显示窗口")
+        .text(TRAY_MENU_SETTINGS, "设置")
+        .separator()
+        .text(TRAY_MENU_QUIT, "退出")
+        .build()?)
 }
 
 #[cfg(target_os = "linux")]
