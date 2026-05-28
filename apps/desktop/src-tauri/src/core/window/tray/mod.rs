@@ -5,12 +5,16 @@
 use log::{info, warn};
 use tauri::{
     image::Image,
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, PhysicalPosition, Runtime, WebviewUrl, WebviewWindowBuilder,
 };
 
 const TRAY_ID: &str = "touchai-main";
 const TRAY_MENU_ROUTE: &str = "#/tray-menu";
+
+struct TouchAiTray<R: Runtime> {
+    _tray: TrayIcon<R>,
+}
 
 pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     let icon = load_tray_icon()?;
@@ -22,7 +26,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::er
     #[cfg(not(target_os = "linux"))]
     let tray_builder = TrayIconBuilder::with_id(TRAY_ID);
 
-    let _tray = tray_builder
+    let tray = tray_builder
         .icon(icon)
         .tooltip("TouchAI")
         .on_tray_icon_event(|tray, event| match event {
@@ -51,6 +55,8 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::er
             _ => {}
         })
         .build(app)?;
+
+    app.manage(TouchAiTray { _tray: tray });
 
     info!("Created TouchAI tray icon with id '{}'", TRAY_ID);
 
