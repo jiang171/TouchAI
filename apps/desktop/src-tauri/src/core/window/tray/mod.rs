@@ -2,19 +2,27 @@
 
 //! 系统托盘模块。
 
-use log::warn;
+use log::{info, warn};
 use tauri::{
     image::Image,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, PhysicalPosition, Runtime, WebviewUrl, WebviewWindowBuilder,
 };
 
+const TRAY_ID: &str = "touchai-main";
 const TRAY_MENU_ROUTE: &str = "#/tray-menu";
 
 pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     let icon = load_tray_icon()?;
 
-    let _tray = TrayIconBuilder::new()
+    #[cfg(target_os = "linux")]
+    let tray_builder =
+        TrayIconBuilder::with_id(TRAY_ID).temp_dir_path(resolve_linux_tray_icon_dir(app)?);
+
+    #[cfg(not(target_os = "linux"))]
+    let tray_builder = TrayIconBuilder::with_id(TRAY_ID);
+
+    let _tray = tray_builder
         .icon(icon)
         .tooltip("TouchAI")
         .on_tray_icon_event(|tray, event| match event {
@@ -43,6 +51,8 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::er
             _ => {}
         })
         .build(app)?;
+
+    info!("Created TouchAI tray icon with id '{}'", TRAY_ID);
 
     Ok(())
 }
@@ -90,6 +100,15 @@ fn load_tray_icon() -> Result<Image<'static>, Box<dyn std::error::Error>> {
 
     let icon = Image::new_owned(rgba.into_raw(), width, height);
     Ok(icon)
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_linux_tray_icon_dir<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let icon_dir = app.path().app_cache_dir()?.join("tray-icons");
+    std::fs::create_dir_all(&icon_dir)?;
+    Ok(icon_dir)
 }
 
 fn show_tray_menu<R: Runtime>(
