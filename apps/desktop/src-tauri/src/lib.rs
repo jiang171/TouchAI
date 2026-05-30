@@ -9,9 +9,27 @@ use core::built_in_tools::BuiltInProcessExecutionRegistry;
 use core::database::DatabaseRuntime;
 use core::mcp::McpClientManager;
 use core::setup;
+use core::system::runtime::SearchWindowLaunchAction;
 use core::window::popup::PopupRegistry;
 use log::{error, warn};
 use tauri::{Manager, WindowEvent};
+
+fn apply_search_window_launch_action<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    action: SearchWindowLaunchAction,
+) {
+    let result = match action {
+        SearchWindowLaunchAction::Show => core::window::show_search_window(app.clone()),
+        SearchWindowLaunchAction::Toggle => core::window::show_search_window_from_shortcut(app),
+    };
+
+    if let Err(error) = result {
+        warn!(
+            "Failed to apply search window launch action '{:?}': {}",
+            action, error
+        );
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -93,14 +111,10 @@ pub fn run() {
     let builder =
         if cfg!(not(debug_assertions)) && core::system::runtime::should_enable_single_instance() {
             builder.plugin(tauri_plugin_single_instance::init(
-                |app, _args: Vec<String>, _cwd: String| {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.unminimize();
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    } else {
-                        warn!("Main window not found while handling second-instance activation");
-                    }
+                |app, args: Vec<String>, _cwd: String| {
+                    let action = core::system::runtime::search_window_launch_action_from_args(args)
+                        .unwrap_or(SearchWindowLaunchAction::Show);
+                    apply_search_window_launch_action(app, action);
                 },
             ))
         } else {
@@ -111,6 +125,9 @@ pub fn run() {
         .setup(|app| {
             if let Err(err) = setup::setup_app(app) {
                 return Err(Box::new(std::io::Error::other(err)));
+            }
+            if let Some(action) = core::system::runtime::current_search_window_launch_action() {
+                apply_search_window_launch_action(app.handle(), action);
             }
             Ok(())
         })
