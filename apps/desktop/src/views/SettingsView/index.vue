@@ -47,7 +47,6 @@
     const shellVisibilityClass = computed(() =>
         initialLoadingVisible.value ? 'opacity-0' : 'opacity-100'
     );
-
     const currentWindow = (() => {
         try {
             return getCurrentWindow();
