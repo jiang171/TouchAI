@@ -170,9 +170,29 @@ describe('SettingsWindowView', () => {
         await wrapper.get('[data-testid="settings-window-close"]').trigger('click');
 
         expect(windowApiMock.currentWindow.minimize).toHaveBeenCalledTimes(1);
-        expect(windowApiMock.currentWindow.isMaximized).toHaveBeenCalledTimes(1);
+        expect(windowApiMock.currentWindow.isMaximized).toHaveBeenCalledTimes(2);
         expect(windowApiMock.currentWindow.maximize).toHaveBeenCalledTimes(1);
         expect(windowApiMock.currentWindow.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('clips the transparent native window with a rounded shell until maximized', async () => {
+        const wrapper = mountSettingsWindow();
+
+        await vi.runAllTimersAsync();
+        await flushPromises();
+
+        expect(wrapper.get('[data-testid="settings-view"]').classes()).toContain('rounded-[14px]');
+        expect(wrapper.get('[data-testid="settings-shell-frame"]').classes()).toContain(
+            'rounded-[14px]'
+        );
+
+        await wrapper.get('[data-testid="settings-window-maximize"]').trigger('click');
+        await flushPromises();
+
+        expect(wrapper.get('[data-testid="settings-view"]').classes()).toContain('rounded-none');
+        expect(wrapper.get('[data-testid="settings-shell-frame"]').classes()).toContain(
+            'rounded-none'
+        );
     });
 
     it('clears the startup delay timer when the window unmounts before becoming ready', () => {
