@@ -28,6 +28,7 @@ pub async fn build_settings_window<R: Runtime>(app: &AppHandle<R>) -> Result<(),
     .min_inner_size(SETTINGS_WINDOW_MIN_WIDTH, SETTINGS_WINDOW_MIN_HEIGHT)
     .resizable(true)
     .decorations(false)
+    .transparent(true)
     .center()
     .build()
     .map_err(|e| e.to_string())?;

@@ -47,6 +47,9 @@
     const shellVisibilityClass = computed(() =>
         initialLoadingVisible.value ? 'opacity-0' : 'opacity-100'
     );
+    const settingsShellShapeClass = computed(() =>
+        isWindowMaximized.value ? 'rounded-none' : 'rounded-[14px]'
+    );
 
     const currentWindow = (() => {
         try {
@@ -115,6 +118,18 @@
         isWindowMaximized.value = true;
     };
 
+    const syncWindowMaximizedState = async () => {
+        if (!currentWindow) {
+            return;
+        }
+
+        try {
+            isWindowMaximized.value = await currentWindow.isMaximized();
+        } catch (error) {
+            console.error('[SettingsView] Failed to sync native maximized state:', error);
+        }
+    };
+
     const handleClose = async () => {
         await currentWindow?.close();
     };
@@ -147,6 +162,7 @@
 
     onMounted(() => {
         syncNativeWindowTitle();
+        void syncWindowMaximizedState();
         void initialize();
     });
 
@@ -162,11 +178,18 @@
 
 <template>
     <div
-        class="relative h-screen w-screen overflow-hidden bg-[#f4f4f2] font-serif text-[13px]"
+        :class="[
+            'relative h-screen w-screen overflow-hidden bg-transparent font-serif text-[13px]',
+            settingsShellShapeClass,
+        ]"
         data-testid="settings-view"
     >
         <div
-            :class="['flex h-full w-full overflow-hidden', shellVisibilityClass]"
+            :class="[
+                'flex h-full w-full overflow-hidden bg-[#f4f4f2]',
+                settingsShellShapeClass,
+                shellVisibilityClass,
+            ]"
             data-testid="settings-shell-frame"
         >
             <NavigationSidebar
